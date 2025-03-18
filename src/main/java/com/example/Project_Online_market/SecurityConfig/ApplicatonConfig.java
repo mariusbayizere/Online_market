@@ -29,12 +29,15 @@ import org.springframework.web.cors.CorsConfigurationSource;
                         .requestMatchers("/swagger-ui/**").permitAll()
                         .requestMatchers("/v3/api-docs/**").permitAll()
                         .requestMatchers("/auth/**").permitAll()
-                        .requestMatchers("/api/orders/**").hasAnyRole("SHOPPER", "BUYER","ADMIN") // Restrict order placement
-                        .requestMatchers("/api/orders/history").authenticated() // Only authenticated users can view order history
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN") // Restrict admin endpoints
-                        .requestMatchers("/api/categories/**").hasRole("ADMIN") // Restrict admin endpoints
-                        .requestMatchers("/api/products/**").hasRole("ADMIN") // Restrict admin endpoints
-                        .requestMatchers("/api/reviews/**").hasRole("ADMIN") // Restrict admin endpoints
+                        .requestMatchers("/api/orders/**").hasAnyRole("SHOPPER","ADMIN") // Restrict order placement
+                        .requestMatchers("/api/orders/history").authenticated()
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/categories/**").hasRole("ADMIN") 
+                        .requestMatchers("/api/products/**").hasRole("ADMIN") 
+                        // .requestMatchers("/api/reviews/**").hasRole("ADMIN")
+                        .requestMatchers("/api/users/**").hasRole("ADMIN")  
+
+
                         .anyRequest().permitAll())
                         // .anyRequest().authenticated())
                     .addFilterBefore(new JwtTokenValidator(), BasicAuthenticationFilter.class)

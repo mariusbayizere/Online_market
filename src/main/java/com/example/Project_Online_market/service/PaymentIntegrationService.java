@@ -16,13 +16,14 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import com.example.Project_Online_market.Enum.PaymentStatus;
-import com.example.Project_Online_market.Model.EmailDetails;
 import com.example.Project_Online_market.Model.Orders;
 import com.example.Project_Online_market.Model.Payment;
 import com.example.Project_Online_market.Model.Products;
 import com.example.Project_Online_market.Model.Users;
 import com.example.Project_Online_market.Repository.OrdersRepository;
 import com.example.Project_Online_market.Repository.PaymentRepository;
+import com.example.Project_Online_market.dto.EmailMessage;
+import com.example.Project_Online_market.dto.PaymentMessage;
 
 @Service
 public class PaymentIntegrationService {
@@ -38,10 +39,10 @@ public class PaymentIntegrationService {
 
     @Autowired
     private EmailService emailService;
-    
-    /**
-     * Initiates a payment with Flutterwave and creates a pending payment record in the database
-     */
+
+    @Autowired
+    private RabbitMQSender rabbitMQSender;
+
     @Transactional
     public Map<String, Object> initiatePaymentForOrder(int orderId, String email, String phoneNumber, String paymentMethod) {
         Map<String, Object> response = new HashMap<>();
@@ -64,7 +65,7 @@ public class PaymentIntegrationService {
             return response;
         }
         
-        // Calculate order amount based on product price and quantity
+        // Calculate order amount
         double amount = order.getProduct().getProduct_Price() * order.getQuantity();
         
         // Create or update payment record
@@ -81,37 +82,54 @@ public class PaymentIntegrationService {
         payment.setPayment_Date(new Date());
         payment.setPayment_Amount(amount);
         
-        // Save the payment to get an ID
+        // Save payment
         Payment savedPayment = paymentRepository.save(payment);
         
-        // Now initiate the Flutterwave payment
-        String flutterwaveResponse = initiateFlutterwavePayment(
-            String.valueOf(amount), 
-            "RWF", // Or your preferred currency
-            email,
-            phoneNumber,
+        // Send payment message via RabbitMQ
+        PaymentMessage paymentMessage = new PaymentMessage(
+            savedPayment.getPayment_ID(),
+            order.getOrder_ID(),
             paymentMethod,
-            String.valueOf(savedPayment.getPayment_ID()) // Use payment ID as reference
+            savedPayment.getPayment_Status().toString(),
+            savedPayment.getPayment_Date(),
+            savedPayment.getPayment_Amount()
         );
-        
+        rabbitMQSender.sendPaymentMessage(paymentMessage);
+    
+        // Declare jsonResponse before the try block
+        JSONObject jsonResponse = null;
+    
         try {
-            // Parse the Flutterwave response
-            JSONObject jsonResponse = new JSONObject(flutterwaveResponse);
+            // Initiate Flutterwave payment
+            String flutterwaveResponse = initiateFlutterwavePayment(
+                String.valueOf(amount), 
+                "RWF", // Currency
+                email,
+                phoneNumber,
+                paymentMethod,
+                String.valueOf(savedPayment.getPayment_ID()) // Payment ID as reference
+            );
+    
+            jsonResponse = new JSONObject(flutterwaveResponse);
             
             if (jsonResponse.getString("status").equals("success")) {
                 JSONObject data = jsonResponse.getJSONObject("data");
                 String paymentLink = data.getString("link");
-
-                // Update order status to "Shipped" after successful payment
+    
+                // Update order status
                 order.setOrder_Status("Shipped");
                 orderRepository.save(order);
-
+    
                 sendPaymentConfirmationEmail(order, savedPayment);
                 
                 response.put("status", "success");
                 response.put("message", "Payment initiated successfully");
                 response.put("paymentId", savedPayment.getPayment_ID());
                 response.put("paymentLink", paymentLink);
+    
+                // Send email via RabbitMQ instead of direct call
+                EmailMessage emailMessage = createPaymentConfirmationEmailMessage(order, savedPayment);
+                rabbitMQSender.sendEmailMessage(emailMessage);
             } else {
                 response.put("status", "error");
                 response.put("message", "Failed to initiate payment with provider");
@@ -121,9 +139,35 @@ public class PaymentIntegrationService {
             response.put("status", "error");
             response.put("message", "Error processing payment: " + e.getMessage());
         }
-        
+    
         return response;
     }
+
+
+private EmailMessage createPaymentConfirmationEmailMessage(Orders order, Payment payment) {
+    Users user = order.getUser();
+    Products product = order.getProduct();
+    
+    String subject = "Payment Confirmation - Order #" + order.getOrder_ID();
+    
+    String content = "Dear " + user.getFirst_Name() + ",\n\n" +
+        "Thank you for your payment! Your order has been successfully processed and is now being shipped.\n\n" +
+        "Order Details:\n" +
+        "- Order ID: " + order.getOrder_ID() + "\n" +
+        "- Product: " + product.getProduct_Name() + "\n" +
+        "- Quantity: " + order.getQuantity() + "\n" +
+        "- Total Amount: " + payment.getPayment_Amount() + " RWF\n" +
+        "- Payment Method: " + payment.getPayment_Method() + "\n" +
+        "- Order Status: " + order.getOrder_Status() + "\n\n" +
+        "We will notify you once your order has been delivered.\n\n" +
+        "Thank you for shopping with us!\n\n" +
+        "Best regards,\n" +
+        "Online Market Team";
+    
+    return new EmailMessage(user.getEmail(), subject, content);
+}
+
+
     
     /**
      * Handles the webhook/callback from Flutterwave to update payment status
@@ -157,43 +201,14 @@ public class PaymentIntegrationService {
         }
     }
 
-        /**
-     * Send payment confirmation email to the customer
-     */
     private void sendPaymentConfirmationEmail(Orders order, Payment payment) {
         try {
-            Users user = order.getUser();
-            Products product = order.getProduct();
-            
-            // Create email details
-            EmailDetails emailDetails = new EmailDetails();
-            emailDetails.setRecipient(user.getEmail());
-            emailDetails.setSubject("Payment Confirmation - Order #" + order.getOrder_ID());
-            
-            // Construct the email body
-            String emailBody = "Dear " + user.getFirst_Name() + ",\n\n" +
-                "Thank you for your payment! Your order has been successfully processed and is now being shipped.\n\n" +
-                "Order Details:\n" +
-                "- Order ID: " + order.getOrder_ID() + "\n" +
-                "- Product: " + product.getProduct_Name() + "\n" +
-                "- Quantity: " + order.getQuantity() + "\n" +
-                "- Total Amount: " + payment.getPayment_Amount() + " RWF\n" +
-                "- Payment Method: " + payment.getPayment_Method() + "\n" +
-                "- Order Status: " + order.getOrder_Status() + "\n\n" +
-                "We will notify you once your order has been delivered.\n\n" +
-                "Thank you for shopping with us!\n\n" +
-                "Best regards,\n" +
-                "Online Market Team";
-            
-            emailDetails.setMsgBody(emailBody);
-            
-            // Send the email
-            emailService.sendSimpleMail(emailDetails);
+            EmailMessage emailMessage = createPaymentConfirmationEmailMessage(order, payment);
+            rabbitMQSender.sendEmailMessage(emailMessage);
         } catch (Exception e) {
-            System.err.println("Error sending payment confirmation email: " + e.getMessage());
+            System.err.println("Error queuing payment confirmation email: " + e.getMessage());
         }
     }
-
     
     /**
      * Verify payment status directly with Flutterwave

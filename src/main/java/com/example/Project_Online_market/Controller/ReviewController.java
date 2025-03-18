@@ -31,6 +31,7 @@ import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/reviews")
+// @PreAuthorize("hasRole('ADMIN')")
 @Tag(name = "Review Management", description = "Operations for managing product reviews")
 public class ReviewController {
     
@@ -85,8 +86,8 @@ public class ReviewController {
             @ApiResponse(responseCode = "401", description = "Unauthorized")
         }
     )
+    // @PreAuthorize("isAuthenticated()")
     @PostMapping("/add")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> createReview(@Valid @RequestBody Reviews review) {
         Users user = userRepository.findById(review.getUser().getUser_ID())
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -113,7 +114,6 @@ public class ReviewController {
         }
     )
     @PutMapping("/update/{id}")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> updateReview(@PathVariable int id, @Valid @RequestBody Reviews updatedReview) {
         Reviews existingReview = reviewRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Review not found"));
@@ -137,8 +137,8 @@ public class ReviewController {
             @ApiResponse(responseCode = "403", description = "Forbidden - Admin access required")
         }
     )
+    // @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/delete/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteReview(@PathVariable int id) {
         Reviews existingReview = reviewRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Review not found"));

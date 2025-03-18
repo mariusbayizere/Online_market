@@ -54,15 +54,15 @@ public class Products {
     @NotNull(message = "Product Price is Required")
     @Min(value = 0, message = "Product Price must be positive")
     @Column(name = "Product_Price", nullable = false)
-    private double Product_Price;
+    private Double Product_Price;
 
     @Min(value = 1, message = "Product Quantity must be at least 1")
     @Max(value = 100, message = "Product Quantity must not exceed 100")
     @Column(name = "Product_Quantity", nullable = false)
-    private int Product_Quantity;
+    private Integer Product_Quantity;
 
+    // @Pattern(regexp = "^https?://.*", message = "Product Image URL must be valid (http/https)")
     @NotBlank(message = "Product Image is required")
-    @Pattern(regexp = "^https?://.*", message = "Product Image URL must be valid (http/https)")
     @Column(name = "Product_Image", nullable = false)
     private String Product_Image;
 
@@ -111,6 +111,9 @@ public class Products {
     )
     private Set<Tag> tags = new HashSet<>();
 
+    public Products() {
+    }
+
 
 
     public String getProduct_ID() {
@@ -137,19 +140,19 @@ public class Products {
         Product_Description = product_Description;
     }
 
-    public double getProduct_Price() {
+    public Double getProduct_Price() {
         return Product_Price;
     }
 
-    public void setProduct_Price(double product_Price) {
+    public void setProduct_Price(Double product_Price) {
         Product_Price = product_Price;
     }
 
-    public int getProduct_Quantity() {
+    public Integer getProduct_Quantity() {
         return Product_Quantity;
     }
 
-    public void setProduct_Quantity(int product_Quantity) {
+    public void setProduct_Quantity(Integer product_Quantity) {
         Product_Quantity = product_Quantity;
     }
 

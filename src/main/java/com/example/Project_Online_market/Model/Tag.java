@@ -21,9 +21,9 @@ import jakarta.validation.constraints.Size;
 public class Tag {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "tag_id")
-    private int tagId;
+        @GeneratedValue(strategy = GenerationType.IDENTITY)
+        @Column(name = "tag_id")
+        private Integer tagId;
 
     @NotBlank(message = "Tag Name is required")
     @Size(min = 1, max = 255, message = "Tag Name must be between 1 and 255 characters")
@@ -35,11 +35,11 @@ public class Tag {
     private Set<Products> products = new HashSet<>();
 
     // Getters and setters
-    public int getTagId() {
+    public Integer getTagId() {
         return tagId;
     }
 
-    public void setTagId(int tagId) {
+    public void setTagId(Integer tagId) {
         this.tagId = tagId;
     }
 

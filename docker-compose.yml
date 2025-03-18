@@ -22,10 +22,16 @@ services:
       - SPRINGDOC_SWAGGER_UI_PATH=/swagger-ui.html
       - SPRINGDOC_SWAGGER_UI_ENABLED=true
       - SPRINGDOC_API_DOCS_PATH=/v3/api-docs
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=guest
+      - SPRING_RABBITMQ_PASSWORD=guest
     ports:
       - "8080:8080"
     depends_on:
       db:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     networks:
       - online-market-network
@@ -46,6 +52,24 @@ services:
       - online-market-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: online-market-rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    ports:
+      - "5673:5672"   # RabbitMQ main communication port
+      - "15673:15672" # RabbitMQ management UI
+    networks:
+      - online-market-network
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
       interval: 10s
       timeout: 5s
       retries: 5
